@@ -9,7 +9,8 @@
 
 var core = require('../core'),
     defer = core.defer, promise = core.promise, error = core.error,
-    future = core.future, lazy = core.lazy
+    future = core.future, lazy = core.lazy, promised = core.promised,
+    lazed = core.lazed
 
 exports['test all observers are notified'] = function(assert, done) {
   var expected = 'Taram pam param!'
@@ -298,6 +299,109 @@ exports['test lazy futurues are lazy'] = function(assert, done) {
     assert.equal(runs, 1, 'lazy future runs task when required')
     promise.then()
     assert.equal(runs, 1, 'lazy future runs task only once')
+    done()
+  })
+}
+
+exports['test promised with normal args'] = function(assert, done) {
+  var sum = promised(function(x, y) { return x + y })
+
+  sum(7, 8).then(function(actual) {
+    assert.equal(actual, 7 + 8, 'resolves as expected')
+    done()
+  })
+}
+
+exports['test promised with promise args'] = function(assert, done) {
+  var sum = promised(function(x, y) { return x + y })
+  var deferred = defer()
+
+  sum(11, deferred.promise).then(function(actual) {
+    assert.equal(actual, 11 + 24, 'resolved as expected')
+    done()
+  })
+
+  deferred.resolve(24)
+}
+
+exports['test promised with prototype'] = function(assert, done) {
+  var deferred = defer()
+  var numeric = {}
+  numeric.subtract = promised(function(y) { return this - y }, numeric)
+
+  var sum = promised(function(x, y) { return x + y }, numeric)
+
+  sum(7, 70).
+    subtract(14).
+    subtract(deferred.promise).
+    subtract(5).
+    then(function(actual) {
+      assert.equal(actual, 7 + 70 - 14 - 23 - 5, 'resolved as expected')
+      done()
+    })
+
+  deferred.resolve(23)
+}
+
+exports['test promised error handleing'] = function(assert, done) {
+  var expected = Error('boom')
+  var f = promised(function() {
+    throw expected
+  })
+
+  f().then(function() {
+    assert.fail('should reject')
+  }, function(actual) {
+    assert.equal(actual, expected, 'rejected as expected')
+    done()
+  })
+}
+
+exports['test return promise form promised'] = function(assert, done) {
+  var f = promised(function() {
+    return promise(17)
+  })
+
+  f().then(function(actual) {
+    assert.equal(actual, 17, 'resolves to a promise resolution')
+    done()
+  })
+}
+
+exports['test promised returning failure'] = function(assert, done) {
+  var expected = Error('boom')
+  var f = promised(function() {
+    return error(expected)
+  })
+
+  f().then(function() {
+    assert.fail('must reject')
+  }, function(actual) {
+    assert.equal(actual, expected, 'rejects with expected reason')
+    done()
+  })
+}
+
+exports['test promised are greedy'] = function(assert, done) {
+  var runs = 0
+  var f = promised(function() { ++runs })
+  var promise = f()
+  assert.equal(runs, 1, 'promised runs task right away')
+  done()
+}
+
+exports['test lazed futures are lazy'] = function(assert, done) {
+  var runs = 0
+  var f = lazed(function() { ++runs })
+  var promise = f()
+  assert.equal(runs, 0, 'lazed future runs on demand')
+  promise.then(function() {
+    assert.equal(runs, 1, 'lazed future runs task when required')
+    promise.then()
+    assert.equal(runs, 1, 'lazed future runs task only once')
+    assert.notEqual(f().then(), promise,
+                    'lazed future does not caches return value')
+    assert.equal(runs, 2, 'lazed future returns different value each time')
     done()
   })
 }
