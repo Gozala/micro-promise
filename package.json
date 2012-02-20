@@ -1,0 +1,32 @@
+{
+  "name": "micro-promise",
+  "id": "micro-promise",
+  "version": "0.0.1",
+  "description": "Just an essentials for working with promises",
+  "keywords": [ "micro-promise" ],
+  "author": "Irakli Gozalishvili <rfobic@gmail.com> (http://jeditoolkit.com)",
+  "homepage": "https://github.com/Gozala/micro-promise",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Gozala/micro-promise.git",
+    "web": "https://github.com/Gozala/micro-promise"
+  },
+  "bugs": {
+    "url": "http://github.com/Gozala/micro-promise/issues/"
+  },
+  "devDependencies": {
+    "test": ">=0.4.4",
+    "repl-utils": ">=1.0.0"
+  },
+  "engines": {
+    "node": ">=0.4.x"
+  },
+  "scripts": {
+    "test": "node tests/test-all.js",
+    "repl": "node node_modules/repl-utils"
+  },
+  "licenses": [{
+    "type" : "MIT",
+    "url" : "http://jeditoolkit.com/LICENSE"
+  }]
+}
