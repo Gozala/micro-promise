@@ -7,6 +7,10 @@
 
 "use strict";
 
+// Internal utility helper.
+var concat = Array.prototype.concat
+var call = Function.call
+
 function resolution(value) {
   /**
   Returns non-standard compliant (`then` does not returns a promise) promise
@@ -159,6 +163,22 @@ function error(reason, prototype) {
 }
 exports.error = error
 
+// ! Internal utility function.
+function join(promises, prototype) {
+  /**
+  takes array of promises and returns promise that resolves to an
+  array of resolutions of these promises, preserving their order
+  in the array.
+  **/
+  return promises.reduce(function(items, item) {
+    return items.then(function(items) {
+      return promise(item).then(function(item) {
+        return items.concat(item)
+      })
+    })
+  }, promise([], prototype))
+}
+
 function future(f, options, prototype) {
   /**
   Returned a promise that immediately resolves to `f(options)` or
@@ -184,5 +204,39 @@ function lazy(f, options, prototype) {
   })
 }
 exports.lazy = lazy
+
+function promised(f, prototype) {
+  /**
+  Returns a wrapped `f`, which when called returns a promise that resolves to
+  `f(...)` passing all the given arguments to it, which by the way may be
+  promises. Optionally second `prototype` argument may be provided to be used
+  a prototype for a returned promise.
+
+  ## Example
+
+  var promise = promised(Array)(1, promise(2), promise(3))
+  promise.then(console.log) // => [ 1, 2, 3 ]
+  **/
+
+  return function promised() {
+    return future(function(args) {
+      return call.apply(f, args)
+    }, join(concat.apply([ this ], arguments)), prototype)
+  }
+}
+exports.promised = promised
+
+function lazed(f, prototype) {
+  /**
+  This compares to `promised` as `lazy` does to `future`. It calls `f` on
+  demand deferring until (if ever) `then` of the returned promise is called.
+  **/
+  return function lazed() {
+    return lazy(function(args) {
+      return call.apply(f, args)
+    }, join(concat.apply([ this ], arguments)), prototype)
+  }
+}
+exports.lazed = lazed
 
 });
