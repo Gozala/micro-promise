@@ -5,12 +5,11 @@
 
 (typeof define === "undefined" ? function ($) { $(require, exports, module) } : define)(function (require, exports, module, undefined) {
 
-'use strict'
+'use strict';
 
 var core = require('../core'),
-    defer = core.defer, promise = core.promise, error = core.error,
-    future = core.future, lazy = core.lazy, promised = core.promised,
-    lazed = core.lazed
+    defer = core.defer, resolve = core.resolve, reject = core.reject,
+    promised = core.promised
 
 exports['test all observers are notified'] = function(assert, done) {
   var expected = 'Taram pam param!'
@@ -18,7 +17,7 @@ exports['test all observers are notified'] = function(assert, done) {
   var pending = 10, i = 0
 
   function resolved(value) {
-    assert.equal(value, expected, 'value resoved as expected: #' + pending)
+    assert.equal(value, expected, 'value resolved as expected: #' + pending)
     if (!--pending) done()
   }
 
@@ -27,7 +26,7 @@ exports['test all observers are notified'] = function(assert, done) {
   deferred.resolve(expected)
 }
 
-exports['test exceptions dont stop nitifactions'] = function(assert, done) {
+exports['test exceptions dont stop notifications'] = function(assert, done) {
   var threw = false, boom = Error('Boom!')
   var deferred = defer()
 
@@ -56,7 +55,7 @@ exports['test subsequent resolves are ignored'] = function(assert, done) {
   deferred.reject(3)
 
   deferred.promise.then(function(actual) {
-    assert.equal(actual, 1, 'resolves to firts value')
+    assert.equal(actual, 1, 'resolves to first value')
   }, function() {
     assert.fail('must not reject')
   })
@@ -109,7 +108,7 @@ exports['test error recovery with promise'] = function(assert, done) {
   var deferred = defer()
 
   deferred.promise.then(function() {
-    assert.fail('must rejcet')
+    assert.fail('must reject')
   }, function(actual) {
     assert.equal(actual, 'reason', 'rejected')
     var deferred = defer()
@@ -137,7 +136,7 @@ exports['test propagation'] = function(assert, done) {
   var d1 = defer(), d2 = defer(), d3 = defer()
 
   d1.promise.then(function(actual) {
-    assert.equal(actual, 'expected', 'resolves to expecetd value')
+    assert.equal(actual, 'expected', 'resolves to expected value')
     done()
   })
 
@@ -151,23 +150,23 @@ exports['test chaining'] = function(assert, done) {
   var deferred = defer()
 
   deferred.promise.then().then().then(function(actual) {
-    assert.equal(actual, 2, 'value propagets unchanged')
+    assert.equal(actual, 2, 'value propagates unchanged')
     return actual + 2
   }).then(null, function(reason) {
     assert.fail('should not reject')
   }).then(function(actual) {
-    assert.equal(actual, 4, 'value propagets through if not handled')
+    assert.equal(actual, 4, 'value propagates through if not handled')
     throw boom
   }).then(function(actual) {
     assert.fail('exception must reject promise')
   }).then().then(null, function(actual) {
-    assert.equal(actual, boom, 'reason propagets unchanged')
+    assert.equal(actual, boom, 'reason propagates unchanged')
     throw brax
   }).then().then(null, function(actual) {
     assert.equal(actual, brax, 'reason changed becase of exception')
     return 'recovery'
   }).then(function(actual) {
-    assert.equal(actual, 'recovery', 'recorverd from error')
+    assert.equal(actual, 'recovery', 'recovered from error')
     done()
   })
 
@@ -175,10 +174,10 @@ exports['test chaining'] = function(assert, done) {
 }
 
 
-exports['test error'] = function(assert, done) {
+exports['test reject'] = function(assert, done) {
   var expected = Error('boom')
 
-  error(expected).then(function() {
+  reject(expected).then(function() {
     assert.fail('should reject')
   }, function(actual) {
     assert.equal(actual, expected, 'rejected with expected reason')
@@ -187,7 +186,7 @@ exports['test error'] = function(assert, done) {
   })
 }
 
-exports['test resolve to error'] = function(assert, done) {
+exports['test resolve to rejected'] = function(assert, done) {
   var expected = Error('boom')
   var deferred = defer()
 
@@ -199,20 +198,20 @@ exports['test resolve to error'] = function(assert, done) {
     done()
   })
 
-  deferred.resolve(error(expected))
+  deferred.resolve(reject(expected))
 }
 
-exports['test promise'] = function(assert, done) {
+exports['test resolve'] = function(assert, done) {
   var expected = 'value'
-  promise(expected).then(function(actual) {
+  resolve(expected).then(function(actual) {
     assert.equal(actual, expected, 'resolved as expected')
   }).then(function() {
     done()
   })
 }
 
-exports['test promise with prototype'] = function(assert, done) {
-  var seventy = promise(70, {
+exports['test resolve with prototype'] = function(assert, done) {
+  var seventy = resolve(70, {
     subtract: function subtract(y) {
       return this.then(function(x) { return x - y })
     }
@@ -220,85 +219,6 @@ exports['test promise with prototype'] = function(assert, done) {
 
   seventy.subtract(17).then(function(actual) {
     assert.equal(actual, 70 - 17, 'resolves to expected')
-    done()
-  })
-}
-
-exports['test future with normal args'] = function(assert, done) {
-  var sum = future(function(x) { return 7 + x }, 8)
-
-  sum.then(function(actual) {
-    assert.equal(actual, 7 + 8, 'resolves as expected')
-    done()
-  })
-}
-
-exports['test future with promise args'] = function(assert, done) {
-  var deferred = defer()
-  var sum = future(function(x) { return 11 + x }, deferred.promise)
-
-  sum.then(function(actual) {
-    assert.equal(actual, 11 + 24, 'resolved as expected')
-    done()
-  })
-
-  deferred.resolve(24)
-}
-
-exports['test future error handleing'] = function(assert, done) {
-  var expected = Error('boom')
-  var f = future(function() {
-    throw expected
-  })
-
-  f.then(function() {
-    assert.fail('should reject')
-  }, function(actual) {
-    assert.equal(actual, expected, 'rejected as expected')
-    done()
-  })
-}
-
-exports['test return promise form future'] = function(assert, done) {
-  var f = future(function() {
-    return promise(17)
-  })
-
-  f.then(function(actual) {
-    assert.equal(actual, 17, 'resolves to a promise resolution')
-    done()
-  })
-}
-
-exports['test future returning failure'] = function(assert, done) {
-  var expected = Error('boom')
-  var f = future(function() {
-    return error(expected)
-  })
-
-  f.then(function() {
-    assert.fail('must reject')
-  }, function(actual) {
-    assert.equal(actual, expected, 'rejects with expected reason')
-    done()
-  })
-}
-
-exports['test futures are greedy'] = function(assert, done) {
-  var runs = 0
-  var f = future(function() { ++runs })
-  assert.equal(runs, 1, 'future runs task right away')
-  done()
-}
-
-exports['test lazy futurues are lazy'] = function(assert, done) {
-  var runs = 0
-  var promise = lazy(function() { ++runs })
-  assert.equal(runs, 0, 'lazy future runs on demand')
-  promise.then(function() {
-    assert.equal(runs, 1, 'lazy future runs task when required')
-    promise.then()
-    assert.equal(runs, 1, 'lazy future runs task only once')
     done()
   })
 }
@@ -359,7 +279,7 @@ exports['test promised error handleing'] = function(assert, done) {
 
 exports['test return promise form promised'] = function(assert, done) {
   var f = promised(function() {
-    return promise(17)
+    return resolve(17)
   })
 
   f().then(function(actual) {
@@ -371,7 +291,7 @@ exports['test return promise form promised'] = function(assert, done) {
 exports['test promised returning failure'] = function(assert, done) {
   var expected = Error('boom')
   var f = promised(function() {
-    return error(expected)
+    return reject(expected)
   })
 
   f().then(function() {
@@ -390,23 +310,7 @@ exports['test promised are greedy'] = function(assert, done) {
   done()
 }
 
-exports['test lazed futures are lazy'] = function(assert, done) {
-  var runs = 0
-  var f = lazed(function() { ++runs })
-  var promise = f()
-  assert.equal(runs, 0, 'lazed future runs on demand')
-  promise.then(function() {
-    assert.equal(runs, 1, 'lazed future runs task when required')
-    promise.then()
-    assert.equal(runs, 1, 'lazed future runs task only once')
-    assert.notEqual(f().then(), promise,
-                    'lazed future does not caches return value')
-    assert.equal(runs, 2, 'lazed future returns different value each time')
-    done()
-  })
-}
-
 if (module == require.main)
   require("test").run(exports)
 
-})
+});

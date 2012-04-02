@@ -2,14 +2,20 @@
 /*jshint asi: true undef: true es5: true node: true devel: true
          forin: true latedef: false supernew: true */
 /*global define: true */
+!function(factory) {
+  if (typeof(define) === 'function') { // RequireJS
+    define(factory)
+  } else if (typeof(exports) === 'object') { // CommonJS
+    factory(require, exports)
+  } else if (~String(this).indexOf('BackstagePass')) { // JSM
+    factory(undefined, this)
+    this.EXPORTED_SYMBOLS = Object.keys(this)
+  } else {
+    factory(undefined, (this.promise = {}))
+  }
+}.call(this, function(require, exports) {
 
-!(typeof(define) !== "function" ? function($) { $(typeof(require) !== 'function' ? (function() { throw Error('require unsupported'); }) : require, typeof(exports) === 'undefined' ? this : exports, typeof(module) === 'undefined' ? {} : module); } : define)(function(require, exports, module) {
-
-"use strict";
-
-// Internal utility helper.
-var concat = Array.prototype.concat
-var call = Function.call
+'use strict';
 
 function resolution(value) {
   /**
@@ -33,7 +39,7 @@ function attempt(f) {
   error and returns promise that rejects with a thrown error. Otherwise returns
   return value. (Internal utility)
   **/
-  return function attempt(options) {
+  return function effort(options) {
     try { return f(options) }
     catch(error) { return rejection(error) }
   }
@@ -140,7 +146,7 @@ function defer(prototype) {
 }
 exports.defer = defer
 
-function promise(value, prototype) {
+function resolve(value, prototype) {
   /**
   Returns a promise resolved to a given `value`. Optionally second `prototype`
   arguments my be provided to be used as a prototype for a returned promise.
@@ -149,9 +155,9 @@ function promise(value, prototype) {
   deferred.resolve(value)
   return deferred.promise
 }
-exports.promise = promise
+exports.resolve = resolve
 
-function error(reason, prototype) {
+function reject(reason, prototype) {
   /**
   Returns a promise that is rejected with a given `reason`. Optionally second
   `prototype` arguments my be provided to be used as a prototype for a returned
@@ -161,82 +167,54 @@ function error(reason, prototype) {
   deferred.reject(reason)
   return deferred.promise
 }
-exports.error = error
+exports.reject = reject
 
-// ! Internal utility function.
-function join(promises, prototype) {
-  /**
-  takes array of promises and returns promise that resolves to an
-  array of resolutions of these promises, preserving their order
-  in the array.
-  **/
-  return promises.reduce(function(items, item) {
-    return items.then(function(items) {
-      return promise(item).then(function(item) {
-        return items.concat(item)
+var promised = (function() {
+  // Note: Define shortcuts and utility functions here in order to avoid
+  // slower property accesses and unnecessary closure creations on each
+  // call of this popular function.
+
+  var call = Function.call
+  var concat = Array.prototype.concat
+
+  // Utility function that does following:
+  // execute([ f, self, args...]) => f.apply(self, args)
+  function execute(args) { return call.apply(call, args) }
+
+  // Utility function that takes promise of `a` array and maybe promise `b`
+  // as arguments and returns promise for `a.concat(b)`.
+  function promisedConcat(promises, unknown) {
+    return promises.then(function(values) {
+      return resolve(unknown).then(function(value) {
+        return values.concat(value)
       })
     })
-  }, promise([], prototype))
-}
-
-function future(f, options, prototype) {
-  /**
-  Returned a promise that immediately resolves to `f(options)` or
-  rejects on exception. If third argument optional `prototype` is
-  provided it will be used as prototype for a return promise.
-  **/
-  return promise(options, prototype).then(f)
-}
-exports.future = future
-
-function lazy(f, options, prototype) {
-  /**
-  This is just like future with a difference that it will call `f` on demand
-  deferring this until (if ever) `then` of the returned promise is called.
-  **/
-  var result
-  prototype = (prototype || prototype === null) ? prototype : Object.prototype
-  return Object.create(prototype, {
-    then: { value: function then(resolve, reject) {
-      result = result || future(f, options)
-      return result.then(resolve, reject)
-    }}
-  })
-}
-exports.lazy = lazy
-
-function promised(f, prototype) {
-  /**
-  Returns a wrapped `f`, which when called returns a promise that resolves to
-  `f(...)` passing all the given arguments to it, which by the way may be
-  promises. Optionally second `prototype` argument may be provided to be used
-  a prototype for a returned promise.
-
-  ## Example
-
-  var promise = promised(Array)(1, promise(2), promise(3))
-  promise.then(console.log) // => [ 1, 2, 3 ]
-  **/
-
-  return function promised() {
-    return future(function(args) {
-      return call.apply(f, args)
-    }, join(concat.apply([ this ], arguments)), prototype)
   }
-}
+
+  return function promised(f, prototype) {
+    /**
+    Returns a wrapped `f`, which when called returns a promise that resolves to
+    `f(...)` passing all the given arguments to it, which by the way may be
+    promises. Optionally second `prototype` argument may be provided to be used
+    a prototype for a returned promise.
+
+    ## Example
+
+    var promise = promised(Array)(1, promise(2), promise(3))
+    promise.then(console.log) // => [ 1, 2, 3 ]
+    **/
+
+    return function promised() {
+      // create array of [ f, this, args... ]
+      return concat.apply([ f, this ], arguments).
+        // reduce it via `promisedConcat` to get promised array of fulfillments
+        reduce(promisedConcat, resolve([], prototype)).
+        // finally map that to promise of `f.apply(this, args...)`
+        then(execute)
+    }
+  }
+})()
 exports.promised = promised
 
-function lazed(f, prototype) {
-  /**
-  This compares to `promised` as `lazy` does to `future`. It calls `f` on
-  demand deferring until (if ever) `then` of the returned promise is called.
-  **/
-  return function lazed() {
-    return lazy(function(args) {
-      return call.apply(f, args)
-    }, join(concat.apply([ this ], arguments)), prototype)
-  }
-}
-exports.lazed = lazed
+})
 
-});
